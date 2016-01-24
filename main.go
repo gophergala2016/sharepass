@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -21,6 +22,11 @@ import (
 var HtmlTemplate = template.Must(template.New("password").Parse(html))
 
 func main() {
+	copyFlag := flag.Bool("copy", true, "Copy sharing URL to clipboard")
+	flag.Parse()
+
+	log.SetFlags(0)
+
 	ip, err := getLocalAddr()
 	if err != nil {
 		log.Fatalln(err)
@@ -47,11 +53,14 @@ func main() {
 		Host:   addr,
 		Path:   "/" + key,
 	}
-	log.Printf("Listening on %s\n", serveUrl.String())
+	url := serveUrl.String()
+	log.Printf("Listening on %s\n", url)
 
-	// TODO: add a boolean flag for this
-	if err := clipboard.WriteAll(serveUrl.String()); err != nil {
-		log.Printf("Error copying to clipboard: %s\n", err)
+	if *copyFlag {
+		if err := clipboard.WriteAll(url); err != nil {
+			log.Printf("Error copying to clipboard: %s\n", err)
+		}
+		log.Printf("Copied to clipboard: \"%s\"\n", url)
 	}
 
 	done := make(chan bool)
@@ -111,7 +120,7 @@ func getSecretKey() (string, error) {
 
 func getPass(input io.Reader) (pass string, err error) {
 	reader := bufio.NewReader(input)
-	fmt.Printf("Enter password > ")
+	fmt.Fprintf(os.Stderr, "Enter password > ")
 	pass, err = reader.ReadString('\n')
 	pass = strings.TrimRight(pass, "\n\r ")
 	if err != nil {
