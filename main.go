@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/atotto/clipboard"
 )
@@ -23,6 +24,7 @@ var HtmlTemplate = template.Must(template.New("password").Parse(html))
 
 func main() {
 	copyFlag := flag.Bool("copy", true, "Copy sharing URL to clipboard")
+	timeoutFlag := flag.Duration("timeout", time.Minute*10, "Timeout before exiting (e.g. 60s, 10m)")
 	flag.Parse()
 
 	log.SetFlags(0)
@@ -63,7 +65,11 @@ func main() {
 		log.Printf("Copied to clipboard: \"%s\"\n", url)
 	}
 
+	// channel for signalling success or timeout
 	done := make(chan bool)
+	time.AfterFunc(*timeoutFlag, func() {
+		done <- true
+	})
 
 	http.HandleFunc("/"+key, func(res http.ResponseWriter, req *http.Request) {
 		err := HtmlTemplate.Execute(res, pass)
@@ -77,7 +83,7 @@ func main() {
 	server := &http.Server{Addr: addr, Handler: nil}
 	go server.Serve(listener)
 
-	// wait until one successful request is complete
+	// wait until one successful request is complete or timeout occurs
 	<-done
 }
 
