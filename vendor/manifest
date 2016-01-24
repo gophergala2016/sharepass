@@ -1,0 +1,11 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/atotto/clipboard",
+			"repository": "https://github.com/atotto/clipboard",
+			"revision": "d35a4e46333237c6543ed5ef8804f7e922b30544",
+			"branch": "master"
+		}
+	]
+}
