@@ -22,47 +22,66 @@ import (
 
 var HtmlTemplate = template.Must(template.New("password").Parse(html))
 
+const CHILD_PASSWORD_ENV = "_SHAREPASS_PASSWORD"
+
 func main() {
 	copyFlag := flag.Bool("copy", true, "Copy sharing URL to clipboard")
+	daemonFlag := flag.Bool("daemon", true, "Run as background process after entering password")
 	timeoutFlag := flag.Duration("timeout", time.Minute*10, "Timeout before exiting (e.g. 60s, 10m)")
 	flag.Parse()
 
 	log.SetFlags(0)
 
+	pass := os.Getenv(CHILD_PASSWORD_ENV)
+	if pass == "" {
+		// Read the password
+		inputPass, err := getPass(os.Stdin)
+		if err != nil {
+			log.Fatalf("Failed to read password: %s\n", err)
+		}
+		pass = inputPass
+
+		if *daemonFlag {
+			forkChild(pass)
+			return
+		}
+	}
+
+	// Get the local network address
 	ip, err := getLocalAddr()
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	// Generate a secret key
 	key, err := getSecretKey()
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	// Open a socket with a randomly assigned local port
 	listener, err := net.Listen("tcp", ip+":0")
 	if err != nil {
 		log.Fatal(err)
 	}
 	addr := listener.Addr().String()
 
-	pass, err := getPass(os.Stdin)
-	if err != nil {
-		log.Fatalf("Failed to read password: %s\n", err)
-	}
-
+	// Generate the URL to send to the recipient
 	serveUrl := url.URL{
 		Scheme: "http",
 		Host:   addr,
 		Path:   "/" + key,
 	}
 	url := serveUrl.String()
-	log.Printf("Listening on %s\n", url)
+	log.Printf("Listening on %s for %s\n", url, *timeoutFlag)
 
+	// Copy the URL to the clipboard, if enabled
 	if *copyFlag {
 		if err := clipboard.WriteAll(url); err != nil {
 			log.Printf("Error copying to clipboard: %s\n", err)
+		} else {
+			log.Printf("Copied to clipboard: \"%s\"\n", url)
 		}
-		log.Printf("Copied to clipboard: \"%s\"\n", url)
 	}
 
 	// channel for signalling success or timeout
@@ -133,4 +152,16 @@ func getPass(input io.Reader) (pass string, err error) {
 		return
 	}
 	return
+}
+
+func forkChild(pass string) (err error) {
+	attr := &os.ProcAttr{
+		Env:   append(os.Environ(), CHILD_PASSWORD_ENV+"="+pass),
+		Files: []*os.File{nil, nil, os.Stderr},
+	}
+	if _, err = os.StartProcess("sharepass", os.Args, attr); err != nil {
+		return
+	}
+
+	return nil
 }
