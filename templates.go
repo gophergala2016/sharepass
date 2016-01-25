@@ -8,6 +8,7 @@ var html = `<!DOCTYPE html>
 </head>
 <body>
 	<h1>Copy your password</h1>
-	<pre>{{.}}</pre>
+	<textarea onclick="this.focus();this.select()" readonly="readonly">{{.}}</textarea>
+	
 </body>
 </html>`
